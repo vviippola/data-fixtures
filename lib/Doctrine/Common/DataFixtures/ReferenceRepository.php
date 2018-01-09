@@ -78,7 +78,21 @@ class ReferenceRepository
         if ( ! $uow->isInIdentityMap($reference)) {
             $class = $this->manager->getClassMetadata(get_class($reference));
 
-            return $class->getIdentifierValues($reference);
+            $values = $class->getIdentifierValues($reference);
+            // See https://github.com/doctrine/data-fixtures/issues/135 and
+            // https://github.com/doctrine/data-fixtures/issues/167
+            foreach ($values as $key => $value) {
+                if (!is_scalar($value)) {
+                    // To prevent "Array to string conversion" in
+                    // UnitOfWork::tryGetById, we can only return a single
+                    // identifier. This does mean that related entities that
+                    // themselves have a composite primary key are unsupported.
+                    $proxyId = $this->getIdentifier($value, $uow);
+                    $keys = array_keys($proxyId);
+                    $values[$key] = $proxyId[$keys[0]];
+                }
+            }
+            return $values;
         }
 
         // Dealing with ORM UnitOfWork
